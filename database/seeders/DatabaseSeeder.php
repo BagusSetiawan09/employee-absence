@@ -54,7 +54,7 @@ class DatabaseSeeder extends Seeder
         // 6. Buat Shift
         if (!Shift::where('id', 1)->exists()) {
             Shift::create([
-                'id' => 1,              // MEMAKSA ID 1
+                'id' => 1,              // MEMAKSA ID 1git init
                 'name' => 'Shift Regular',
                 'start_time' => '08:00:00',
                 'end_time' => '17:00:00',

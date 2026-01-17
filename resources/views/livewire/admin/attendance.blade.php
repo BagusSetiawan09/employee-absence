@@ -1,8 +1,11 @@
 @php
   use Illuminate\Support\Carbon;
-  $m = Carbon::parse($month);
-  $showUserDetail = !$month || $week || $date; // is week or day filter
+  $m = !empty($month) ? Carbon::parse($month) : Carbon::now();
+  
+  $showUserDetail = !$month || $week || $date;
   $isPerDayFilter = isset($date);
+  
+  $safeDates = $dates ?? collect([]);
 @endphp
 <div>
   @pushOnce('styles')
@@ -68,13 +71,9 @@
             <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300">
               {{ __('Division') }}
             </th>
-            @if ($isPerDayFilter)
-              <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300">
-                {{ __('Shift') }}
-              </th>
-            @endif
+            {{-- KOLOM SHIFT SUDAH DIHAPUS --}}
           @endif
-          @foreach ($dates as $date)
+          @foreach ($safeDates as $date)
             @php
               if (!$isPerDayFilter && $date->isSunday()) {
                   $textClass = 'text-red-500 dark:text-red-300';
@@ -135,16 +134,6 @@
               <td class="{{ $class }} text-nowrap group-hover:bg-gray-100 dark:group-hover:bg-gray-700">
                 {{ $employee->division?->name ?? '-' }}
               </td>
-              @if ($isPerDayFilter)
-                @php
-                  $attendance = $employee->attendances->isEmpty() ? null : $employee->attendances->first();
-                  $timeIn = $attendance ? $attendance['time_in'] : null;
-                  $timeOut = $attendance ? $attendance['time_out'] : null;
-                @endphp
-                <td class="{{ $class }} text-nowrap group-hover:bg-gray-100 dark:group-hover:bg-gray-700">
-                  {{ $attendance['shift'] ?? '-' }}
-                </td>
-              @endif
             @endif
 
             {{-- Absensi --}}
@@ -155,7 +144,7 @@
               $sickCount = 0;
               $absentCount = 0;
             @endphp
-            @foreach ($dates as $date)
+            @foreach ($safeDates as $date)
               @php
                 $isWeekend = $date->isWeekend();
                 $attendance = $attendances->firstWhere(fn($v, $k) => $v['date'] === $date->format('Y-m-d'));

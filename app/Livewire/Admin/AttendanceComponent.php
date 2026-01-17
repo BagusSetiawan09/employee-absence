@@ -54,6 +54,7 @@ class AttendanceComponent extends Component
 
     public function render()
     {
+        // LOGIKA PENENTUAN TANGGAL
         if ($this->date) {
             $dates = [Carbon::parse($this->date)];
         } else if ($this->week) {
@@ -64,7 +65,11 @@ class AttendanceComponent extends Component
             $start = Carbon::parse($this->month)->startOfMonth();
             $end = Carbon::parse($this->month)->endOfMonth();
             $dates = $start->range($end)->toArray();
+        } else {
+            $this->date = date('Y-m-d'); 
+            $dates = [Carbon::parse($this->date)];
         }
+
         $employees = User::where('group', 'user')
             ->when($this->search, function (Builder $q) {
                 return $q->where('name', 'like', '%' . $this->search . '%')
@@ -73,90 +78,74 @@ class AttendanceComponent extends Component
             })
             ->when($this->division, fn (Builder $q) => $q->where('division_id', $this->division))
             ->paginate(20)->through(function (User $user) {
+                
+                // PENGAMBILAN DATA ABSENSI
                 if ($this->date) {
+                    // Logika Harian (Termasuk Default Hari Ini)
                     $attendances = new Collection(Cache::remember(
                         "attendance-$user->id-$this->date",
                         now()->addDay(),
                         function () use ($user) {
-                            /** @var Collection<Attendance>  */
                             $attendances = Attendance::filter(
                                 userId: $user->id,
                                 date: $this->date,
                             )->get();
 
-                            return $attendances->map(
-                                function (Attendance $v) {
-                                    $v->setAttribute('coordinates', $v->lat_lng);
-                                    $v->setAttribute('lat', $v->latitude);
-                                    $v->setAttribute('lng', $v->longitude);
-                                    if ($v->attachment) {
-                                        $v->setAttribute('attachment', $v->attachment_url);
-                                    }
-                                    if ($v->shift) {
-                                        $v->setAttribute('shift', $v->shift->name);
-                                    }
-                                    return $v->getAttributes();
-                                }
-                            )->toArray();
+                            return $this->formatAttendance($attendances);
                         }
                     ) ?? []);
                 } else if ($this->week) {
+                    // Logika Mingguan
                     $attendances = new Collection(Cache::remember(
                         "attendance-$user->id-$this->week",
                         now()->addDay(),
                         function () use ($user) {
-                            /** @var Collection<Attendance>  */
                             $attendances = Attendance::filter(
                                 userId: $user->id,
                                 week: $this->week,
                             )->get(['id', 'status', 'date', 'latitude', 'longitude', 'attachment', 'note']);
 
-                            return $attendances->map(
-                                function (Attendance $v) {
-                                    $v->setAttribute('coordinates', $v->lat_lng);
-                                    $v->setAttribute('lat', $v->latitude);
-                                    $v->setAttribute('lng', $v->longitude);
-                                    if ($v->attachment) {
-                                        $v->setAttribute('attachment', $v->attachment_url);
-                                    }
-                                    return $v->getAttributes();
-                                }
-                            )->toArray();
+                            return $this->formatAttendance($attendances);
                         }
                     ) ?? []);
                 } else if ($this->month) {
+                    // Logika Bulanan
                     $my = Carbon::parse($this->month);
                     $attendances = new Collection(Cache::remember(
                         "attendance-$user->id-$my->month-$my->year",
                         now()->addDay(),
                         function () use ($user) {
-                            /** @var Collection<Attendance>  */
                             $attendances = Attendance::filter(
                                 month: $this->month,
                                 userId: $user->id,
                             )->get(['id', 'status', 'date', 'latitude', 'longitude', 'attachment', 'note']);
 
-                            return $attendances->map(
-                                function (Attendance $v) {
-                                    $v->setAttribute('coordinates', $v->lat_lng);
-                                    $v->setAttribute('lat', $v->latitude);
-                                    $v->setAttribute('lng', $v->longitude);
-                                    if ($v->attachment) {
-                                        $v->setAttribute('attachment', $v->attachment_url);
-                                    }
-                                    return $v->getAttributes();
-                                }
-                            )->toArray();
+                            return $this->formatAttendance($attendances);
                         }
                     ) ?? []);
                 } else {
-                    /** @var Collection */
-                    $attendances = Attendance::where('user_id', $user->id)
-                        ->get(['id', 'status', 'date', 'latitude', 'longitude', 'attachment', 'note']);
+                    // Fallback aman
+                    $attendances = collect([]);
                 }
                 $user->attendances = $attendances;
                 return $user;
             });
+            
         return view('livewire.admin.attendance', ['employees' => $employees, 'dates' => $dates]);
+    }
+
+    private function formatAttendance($attendances)
+    {
+        return $attendances->map(
+            function (Attendance $v) {
+                $v->setAttribute('coordinates', $v->lat_lng);
+                $v->setAttribute('lat', $v->latitude);
+                $v->setAttribute('lng', $v->longitude);
+                if ($v->attachment) {
+                    $v->setAttribute('attachment', $v->attachment_url);
+                }
+                return $v->getAttributes();
+            }
+        )->toArray();
     }
 }
